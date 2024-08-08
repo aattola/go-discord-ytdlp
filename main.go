@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
+	"github.com/joho/godotenv"
 	"io"
 	"layeh.com/gopus"
+	"log"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -30,7 +32,13 @@ func ready(s *discordgo.Session, event *discordgo.Ready) {
 }
 
 func main() {
-	dg, err := discordgo.New("Bot " + "NDEzMzYyNjg2OTQ0ODcwNDEx.GqcagY.F-NSw_URWX0rMLys-Ao-dGKPhBuGG17mObbDaQ")
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	token := os.Getenv("DISCORD_TOKEN")
+	dg, err := discordgo.New("Bot " + token)
 	if err != nil {
 		fmt.Println("Error creating Discord session: ", err)
 		return
