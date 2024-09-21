@@ -1,4 +1,4 @@
-<h1>Go DiscordGO yt-dlp</h1>
+<h1>Sleier-GO</h1>
 
 Basically a proof of concept for a discord bot that streams youtube videos to a voice channel using the discordgo library, yt-dlp and ffmpeg.
 
