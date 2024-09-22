@@ -36,6 +36,14 @@ func main() {
 		Type:        discordgo.ChatApplicationCommand,
 		Name:        "soitadev",
 		Description: "Soittaa jotain",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "hakusana",
+				Description: "yt-dlp soitettava linkki / hakusana youtubeen",
+				Required:    true,
+			},
+		},
 	}
 
 	createdCommand, err := discord.ApplicationCommandCreate(discord.State.User.ID, "214761475422683136", cmd)

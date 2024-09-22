@@ -1,6 +1,7 @@
 package music
 
 import (
+	"context"
 	"github.com/bwmarrin/discordgo"
 	"log"
 )
@@ -29,7 +30,7 @@ type Queue struct {
 	State      QueueState
 	Guild      *discordgo.Guild
 
-	Stop bool
+	PlayingCtxCancel *context.CancelFunc
 }
 
 func GetQueue(guildId string) (*Queue, bool) {

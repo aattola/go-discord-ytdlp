@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"github.com/aattola/sleier-go/app"
 	"github.com/aattola/sleier-go/music"
 	"github.com/bwmarrin/discordgo"
@@ -9,6 +10,8 @@ import (
 
 func Soita(interaction *discordgo.Interaction) {
 	discord := app.GetDiscord()
+
+	hakusana := ParseStringArg(interaction, "hakusana")
 
 	var queue *music.Queue
 
@@ -49,19 +52,22 @@ func Soita(interaction *discordgo.Interaction) {
 
 	log.Println("Queue: ", queue)
 
-	song := music.Song{
-		Title:     "Mirella - Bängeri",
-		Link:      "https://www.youtube.com/watch?v=6a_9HQW1VmY",
-		Thumbnail: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/MattiParkkonen_Orava.jpg/275px-MattiParkkonen_Orava.jpg",
+	song, err := music.SearchYoutube(hakusana)
+	if err != nil {
+		log.Println("Error searching: ", err)
+		return
 	}
 
 	//TODO: hae musa ja aseta nytsoivaksi
 
-	if queue.State == music.StatePlaying {
-		queue.Stop = true
+	if queue.PlayingCtxCancel != nil {
+		(*queue.PlayingCtxCancel)()
 	}
 
-	go queue.Play(song)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	queue.PlayingCtxCancel = &cancel
 	queue.State = music.StatePlaying
+	go queue.Play(*song, ctx)
 
 }

@@ -2,10 +2,9 @@ package music
 
 import (
 	"bufio"
+	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
-	"github.com/bwmarrin/discordgo"
 	"io"
 	"layeh.com/gopus"
 	"log"
@@ -28,7 +27,7 @@ const (
 	BOOM    = "https://www.youtube.com/watch?v=eUy6sAXeDF8"
 )
 
-func (q *Queue) Play(song Song) {
+func (q *Queue) Play(song Song, ctx context.Context) {
 	err := q.vc.Speaking(true)
 	if err != nil {
 		log.Panic("Error setting speaking: ", err)
@@ -72,46 +71,59 @@ func (q *Queue) Play(song Song) {
 		q.songEnd()
 	}()
 
-	defer func(vc *discordgo.VoiceConnection) {
-		err := vc.Disconnect()
+	//defer func(vc *discordgo.VoiceConnection) {
+	//	err := vc.Disconnect()
+	//	if err != nil {
+	//		log.Println("Error disconnecting from voice channel: ", err)
+	//	}
+	//}(q.vc)
+
+	defer func(ytdlCmd *exec.Cmd, ffmpegCmd *exec.Cmd) {
+		err := ytdlCmd.Process.Kill()
 		if err != nil {
-			log.Println("Error disconnecting from voice channel: ", err)
+			log.Println("Error killing yt-dlp: ", err)
 		}
-	}(q.vc)
+		err = ffmpegCmd.Process.Kill()
+		if err != nil {
+			log.Println("Error killing ffmpeg: ", err)
+		}
+
+	}(ytdlCmd, ffmpegCmd)
 
 	encoder, err := gopus.NewEncoder(FrameRate, CHANNELS, gopus.Audio)
 
-	buffer := bufio.NewReaderSize(stdout, 16384)
+	buffer := bufio.NewReaderSize(stdout, 16384*2)
 
+playerLooppi:
 	for {
 
-		if q.Stop {
-			log.Println("Stopping song")
-			break
-		}
+		select {
+		case <-ctx.Done():
+			log.Println("Context cancelled (player stopped)")
+			break playerLooppi
+		default:
+			audioBuffer := make([]int16, FrameSize*CHANNELS)
+			err = binary.Read(buffer, binary.LittleEndian, &audioBuffer)
+			if err == io.EOF || errors.Is(err, io.ErrUnexpectedEOF) {
+				log.Printf("EOF: error reading from ffmpeg stdout: %v", err)
+				break
+			}
+			if err != nil {
+				log.Printf("error reading from ffmpeg stdout: %v", err)
+				break
+			}
 
-		audioBuffer := make([]int16, FrameSize*CHANNELS)
-		err = binary.Read(buffer, binary.LittleEndian, &audioBuffer)
-		if err == io.EOF || errors.Is(err, io.ErrUnexpectedEOF) {
-			log.Printf("EOF: error reading from ffmpeg stdout: %v", err)
-			break
-		}
-		if err != nil {
-			log.Printf("error reading from ffmpeg stdout: %v", err)
-			break
-		}
+			opus, err := encoder.Encode(audioBuffer, FrameSize, MaxBytes)
+			if err != nil {
+				log.Println("Encoding error,", err)
+				return
+			}
+			if !q.vc.Ready || q.vc.OpusSend == nil {
+				log.Printf("Discordgo not ready for opus packets. %+v : %+v", q.vc.Ready, q.vc.OpusSend)
+				return
+			}
 
-		opus, err := encoder.Encode(audioBuffer, FrameSize, MaxBytes)
-		if err != nil {
-			fmt.Println("Encoding error,", err)
-			return
+			q.vc.OpusSend <- opus
 		}
-		if !q.vc.Ready || q.vc.OpusSend == nil {
-			fmt.Printf("Discordgo not ready for opus packets. %+v : %+v", q.vc.Ready, q.vc.OpusSend)
-			return
-		}
-
-		q.vc.OpusSend <- opus
-
 	}
 }
